@@ -31,8 +31,10 @@
 #endif
 
 #ifndef CONSOLE_BG_COLOR
-    #define CONSOLE_BG_COLOR Color(12,12,12)
+    #define CONSOLE_BG_COLOR ::tge::Color(12,12,12)
 #endif
+
+namespace tge {
 
 class Color
 {
@@ -2443,5 +2445,7 @@ inline void Canvas::drawText(const std::wstring& text, int x, int y, Color c) {
         x += static_cast<int>(glyph.getWidth());
     }
 }
+
+} // namespace tge
 
 #endif
