@@ -2,474 +2,336 @@
 
 ![TGE - Terminal Graphic Engine](assets/tge-banner.png)
 
-[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](#requirements-and-inclusion)
-[![Header-only](https://img.shields.io/badge/header--only-7B68EE)](#requirements-and-inclusion)
-[![Version 2.0](https://img.shields.io/badge/version-2.0-7B68EE)](TGE.hpp)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](#getting-started)
+[![Header-only](https://img.shields.io/badge/header--only-7B68EE)](TGE.hpp)
+[![Version 3.0](https://img.shields.io/badge/version-3.0-7B68EE)](TGE.hpp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-7B68EE)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Skell4/TGE?style=flat&logo=github&color=7B68EE)](https://github.com/Skell4/TGE/stargazers)
 
-TGE is a **header-only C++17 library for drawing graphics in a terminal**.
-Draw into a canvas in memory, then call `print()` to display it with 24-bit
-ANSI colors. Each terminal cell holds two vertical pixels.
+TGE is a **header-only C++17 library for drawing graphics in the terminal**.
+Create a canvas, draw shapes, text or images, and call `print()` to display it.
+Each terminal cell represents two vertical pixels using 24-bit ANSI colors.
 
-TGE began as a personal project for building graphical applications in the
-terminal. It can be used for small interfaces, visual demos and terminal games,
-including programs running without a desktop GUI.
-
-The library provides:
-
-- Pixels, lines, circles and rectangles, with filled and outline shapes.
-- Image loading, scaling and drawing through the `.cimg` format.
-- Texture mapping onto a quadrilateral.
-- Bitmap text with letters, digits, symbols and some accented characters.
-- Alpha-based RGB blending when drawing over existing pixels.
-- Frame output that skips terminal cells unchanged since the previous print.
-
-All public C++ types are in the lowercase **`tge` namespace**:
-`tge::Color`, `tge::Canvas`, `tge::CImg` and `tge::Font`.
-`tge::CImg` is an alias for `tge::Canvas`, so images and drawing surfaces use
-the same type. Keyboard and mouse input are handled by your application.
+The library works on Windows and Linux and has **no third-party dependencies**.
+All its code, including the PNG, BMP and ICO decoders, is in `TGE.hpp`.
 
 ## Contents
 
-- [Files](#files)
-- [Requirements and inclusion](#requirements-and-inclusion)
-- [Quick start](#quick-start)
-- [Pixels, frames and terminal sessions](#pixels-frames-and-terminal-sessions)
+- [Features](#features)
+- [Getting started](#getting-started)
+- [Example](#example)
+- [Building](#building)
+- [Drawing](#drawing)
 - [Images and textures](#images-and-textures)
-- [Image converter and file format](#image-converter-and-file-format)
-- [Public API](#public-api)
-- [Updating older code](#updating-older-code)
+- [Colors](#colors)
+- [Canvas and terminal](#canvas-and-terminal)
+- [Bitmap text](#bitmap-text)
+- [Repository files](#repository-files)
 - [License](#license)
 
-## Files
+## Features
 
-| File | Purpose |
-| --- | --- |
-| [TGE.hpp](TGE.hpp) | The complete library. Copy this header into your project. |
-| [img_to_cimg.html](img_to_cimg.html) | A local browser tool for converting images to `.cimg`. |
-| [assets/](assets/) | The README banner in PNG and SVG formats. |
-| [LICENSE](LICENSE) | The MIT license. |
+- Pixels, thick lines, rectangles and circles, including filled shapes.
+- Bitmap text with uppercase and lowercase letters, digits and symbols.
+- Direct PNG, BMP and ICO loading with transparency where supported.
+- Image scaling and texture mapping onto a quadrilateral.
+- RGBA colors and alpha-based RGB blending when drawing.
+- Frame output that skips terminal cells unchanged since the previous frame.
 
-## Requirements and inclusion
+## Getting started
 
-Use a compiler with **C++17 or later** and include `TGE.hpp` in your source
-file. There is no separate library to build or link, and no third-party
-dependencies. The header can be included in multiple source files.
+Copy [TGE.hpp](TGE.hpp) into your project and include it:
 
-For display, run the program in an interactive terminal with UTF-8 and
-24-bit ANSI color support. The renderer uses the Unicode upper-half block
-character `▀`. The terminal font and cell proportions affect the result.
-An IDE's plain output panel may not provide the terminal features TGE needs.
-
-The header uses native console APIs on Windows and Unix-style APIs on other
-systems. On Windows, `initializeTerminal()` enables virtual terminal processing
-and UTF-8 output; `resetTerminal()` attempts to restore the saved settings.
-Compatibility still depends on the terminal host. The checks for this revision
-used GCC/MinGW on Windows; other platforms and terminal hosts need their own
-checks.
-
-Save the first example below as `main.cpp`, next to `TGE.hpp`.
-
-### Windows with GCC or MinGW
-
-In PowerShell:
-
-```powershell
-g++ -std=c++17 -O2 -Wall -Wextra main.cpp -o demo.exe
-.\demo.exe
+```cpp
+#include "TGE.hpp"
 ```
 
-### Windows with MSVC
+Use a compiler with **C++17 or later**. There is no separate library to build
+or link, and the header can be included in multiple source files.
+
+Run graphical programs in an interactive terminal with **UTF-8 and 24-bit ANSI
+color support**. An IDE output panel may not support the terminal features TGE
+uses. The terminal font and cell proportions affect how graphics look.
+
+The public types are in the `tge` namespace:
+
+| Type | Purpose |
+| --- | --- |
+| `tge::Color` | An RGBA color with 8-bit channels. |
+| `tge::Canvas` | A drawing surface stored in memory. |
+| `tge::Img` | An alias for `Canvas`, used for images. |
+| `tge::Font` | The built-in bitmap font. |
+
+Keyboard and mouse input are handled by your application.
+
+## Example
+
+The included [example.cpp](example.cpp) repeatedly draws two circles and a square.
+The canvas follows the terminal size. **Press Ctrl+C to stop the program.**
+Use at least 66 columns and 12 rows to see all three shapes; smaller windows
+clip them. This minimal example does not restore the terminal when interrupted.
+
+```cpp
+#include "TGE.hpp"
+
+int main() {
+    tge::Canvas canvas;
+    tge::Canvas::initializeTerminal();
+
+    while (true) {
+        auto [width, height] = tge::Canvas::getScreenSize();
+        canvas.resize(width, height);
+        canvas.setBG(tge::Color::black);
+
+        canvas.drawCircle(12, 12, 8, tge::Color::yellow);
+        canvas.drawFilledCircle(34, 12, 8, tge::Color::green);
+        canvas.drawFilledRect(50, 4, 16, 16, tge::Color::blue);
+
+        canvas.print();
+        tge::Canvas::sleep(16);
+    }
+
+}
+```
+
+Drawing changes the canvas in memory. `initializeTerminal()` opens the display
+session, `print()` shows the canvas, and `resetTerminal()` restores the terminal.
+Calling `resize()` with unchanged dimensions keeps the existing storage. The
+16 ms pause limits how often the loop runs.
+
+## Building
+
+Keep `example.cpp` and `TGE.hpp` in the same directory.
+
+### Windows - GCC / MinGW
+
+```powershell
+g++ -std=c++17 -O2 example.cpp -o example.exe
+.\example.exe
+```
+
+### Windows - MSVC
 
 In a Visual Studio developer command prompt:
 
 ```bat
-cl /EHsc /std:c++17 /utf-8 main.cpp /Fe:demo.exe
-demo.exe
+cl /EHsc /std:c++17 /utf-8 example.cpp /Fe:example.exe
+example.exe
 ```
 
-### Linux with GCC
+### Linux - GCC
 
 ```sh
-g++ -std=c++17 -O2 -Wall -Wextra main.cpp -o demo -pthread
-./demo
+g++ -std=c++17 -O2 example.cpp -o example -pthread
+./example
 ```
 
-## Quick start
+## Drawing
 
-This example creates a canvas that fits the current terminal, draws a few
-shapes and a label, and waits for Enter before restoring the screen.
+Coordinates and dimensions are measured in **graphics pixels**. The origin
+`(0, 0)` is at the top-left; X increases to the right and Y downward. Drawing
+is clipped to the canvas boundaries.
 
-```cpp
-#include "TGE.hpp"
-#include <exception>
-#include <iostream>
+One terminal cell holds two vertical pixels. A canvas of `60 × 24` pixels
+therefore occupies 60 columns and 12 terminal rows.
 
-int main() {
-    try {
-        auto [width, height] = tge::Canvas::getScreenSize();
-        tge::Canvas canvas(width, height, "TGE demo");
+| Call | What it draws |
+| --- | --- |
+| `drawPixel(x, y, color)` | One pixel. |
+| `drawLine(x0, y0, x1, y1, thickness, color)` | A line with the given thickness. |
+| `drawRect(x, y, width, height, thickness, color)` | A rectangle outline. |
+| `drawFilledRect(x, y, width, height, color)` | A filled rectangle. |
+| `drawCircle(cx, cy, radius, color)` | A circle outline. |
+| `drawFilledCircle(cx, cy, radius, color)` | A filled circle. |
+| `drawText(text, x, y, color)` | Bitmap text from a wide string, such as `L"Hello"`. |
+| `drawImg(image, x, y)` | An image at its original size. |
+| `drawTexture(image, x0, y0, x1, y1, x2, y2, x3, y3)` | An image mapped onto a quadrilateral. |
 
-        canvas.setBG(tge::Color::black);
-        canvas.drawFilledRect(2, 2, 30, 18, tge::Color::blue);
-        canvas.drawCircle(17, 11, 7, tge::Color::yellow);
-        canvas.drawText(L"TGE", 4, 24, tge::Color::white);
-
-        tge::Canvas::initializeTerminal();
-        canvas.print();
-        std::cin.get();
-    } catch (const std::exception& error) {
-        tge::Canvas::resetTerminal();
-        std::cerr << error.what() << '\n';
-        return 1;
-    }
-
-    tge::Canvas::resetTerminal();
-    return 0;
-}
-```
-
-Drawing changes the canvas in memory. `print()` sends it to the terminal and
-requires an active terminal session. You can create canvases, load images and
-draw on them before calling `initializeTerminal()`.
-
-## Pixels, frames and terminal sessions
-
-### Coordinate system
-
-Canvas dimensions and drawing coordinates are measured in **graphics pixels**.
-The origin `(0, 0)` is at the top-left; X increases to the right and Y downward.
-Drawing is clipped at the canvas edges.
-
-One terminal cell displays two vertical pixels: the upper pixel is the
-foreground of `▀`, and the lower pixel is its background. For example, a
-terminal with 80 columns and 24 rows can display a canvas of 80 × 48 pixels.
-`tge::Canvas::getScreenSize()` returns this pixel size, with the terminal row
-count already doubled. It assumes output is attached to a working console or
-terminal; it does not report query failures.
-
-### Drawing a new frame
-
-A canvas keeps its pixels between calls. Start each frame with `setBG()` when
-you want to redraw the whole scene, then draw the scene and call `print()`.
-
-For a short animation, replace `canvas.print()` in the first example with:
-
-```cpp
-for (int frame = 0; frame < 120; ++frame) {
-    canvas.setBG(tge::Color::black);
-
-    int x = frame % static_cast<int>(canvas.getWidth());
-    canvas.drawFilledCircle(x, 12, 4, tge::Color::cyan);
-
-    canvas.print();
-    tge::Canvas::sleep(16);
-}
-```
-
-`sleep(16)` adds a delay of 16 milliseconds per frame; it does not guarantee a
-fixed frame rate. To follow terminal size changes, query `getScreenSize()`
-again and pass the result to `canvas.resize(width, height)`.
-
-**`clear()` releases the canvas buffers and resets its dimensions.** Use
-`setBG()` to fill an existing canvas. After `clear()`, call `resize()` or
-`load()` before drawing again.
-
-### Opening and closing the terminal session
-
-`initializeTerminal()` switches to the alternate screen, clears it and hides
-the cursor. `resetTerminal()` leaves that screen and shows the cursor again.
-These are static functions shared by all canvases.
-
-Call `resetTerminal()` on normal exit and before reporting a handled error, as
-in the example. Destroying a `Canvas` does not close the terminal session.
-
-Use one canvas for display during a session. Each canvas remembers its own
-previous frame, so alternating between display canvases or writing other text
-to the terminal can make the cached frame differ from the visible screen.
+The drawing calls are members of `Canvas`. Set a background with `setBG()`
+before drawing a frame, then call `print()` when the frame is ready. A canvas
+keeps its pixels until you change them.
 
 ## Images and textures
 
-TGE loads its own `.cimg` format. Convert a source image with
-`img_to_cimg.html`, place the result in the program's working directory, and
-pass its filename to `tge::CImg` or `tge::Canvas`.
-
-This is a complete example for a file named `photo.cimg`:
+Load an image by passing its path to `tge::Img`:
 
 ```cpp
-#include "TGE.hpp"
-#include <exception>
-#include <iostream>
-
-int main() {
-    try {
-        tge::CImg image("photo.cimg");
-        auto [width, height] = tge::Canvas::getScreenSize();
-        tge::Canvas screen(width, height);
-
-        screen.setBG(tge::Color::black);
-        screen.drawImg(image, 0, 0);
-
-        tge::Canvas::initializeTerminal();
-        screen.print();
-        std::cin.get();
-    } catch (const std::exception& error) {
-        tge::Canvas::resetTerminal();
-        std::cerr << error.what() << '\n';
-        return 1;
-    }
-
-    tge::Canvas::resetTerminal();
-    return 0;
-}
+tge::Img sprite("sprite.png");
+tge::Img picture("picture.bmp");
+tge::Img icon("icon.ico");
 ```
 
-`drawImg()` draws at the image's original pixel size and clips anything outside
-the destination canvas. To resize an image first, use
-`auto thumbnail = image.scaled(32, 24);` and draw the returned canvas. Scaling
-samples source pixels without interpolation and does not change the original.
+Paths are relative to the program's working directory unless you pass an
+absolute path. Use your own image files; no converter is needed. The loader
+recognizes a format from its contents, independently of the filename extension.
 
-For texture mapping, replace `screen.drawImg(image, 0, 0)` above with:
+`Img` and `Canvas` are the same type. You can draw an image, resize a copy of
+it, or use a canvas as a texture:
 
 ```cpp
-screen.drawTexture(image,
-    2, 2,    // Source top-left maps here.
-    33, 2,   // Source top-right.
-    33, 25,  // Source bottom-right.
-    2, 25);  // Source bottom-left.
+auto thumbnail = sprite.scaled(32, 32);
+canvas.drawImg(thumbnail, 2, 2);
 ```
 
-The vertices describe the destination quadrilateral in perimeter order. TGE
-splits it into two triangles and samples the source image without filtering.
-The mapping is affine within each triangle, so a skewed quadrilateral can show
-a change in distortion along the diagonal.
+`scaled()` samples source pixels without interpolation and leaves the original
+image unchanged. Width and height must be positive.
 
-The filename constructor throws `std::runtime_error` when `load()` reports
-failure. To check the result yourself, create a default canvas and call
-`image.load("photo.cimg")`, which returns `false` for file-opening, dimension
-or incomplete-data errors. Allocation failures can still throw. A failed load
-leaves the previous image unchanged.
+For texture mapping, pass the destination corners in perimeter order:
 
-## Image converter and file format
+```cpp
+canvas.drawTexture(sprite, 2, 2, 33, 2, 33, 21, 2, 21);
+```
 
-### Convert an image
+The mapping uses two affine triangles and samples without filtering.
 
-1. Open [img_to_cimg.html](img_to_cimg.html) in a browser.
-2. Drop an image onto the page, or click the drop area to select one.
-3. Check the preview, pixel dimensions and estimated output size.
-4. Click **Convert and Download .cimg**.
+### Supported formats
 
-The conversion runs locally in the browser and does not upload your image.
-Accepted formats depend on the browser's image decoder. The converter keeps
-the original dimensions and writes RGBA pixels; it has no resizing options.
-Use `scaled()` in C++ or resize the source image before converting it.
-
-The C++ loader reads `.cimg` files directly. PNG, JPEG and other source formats
-must go through the converter first.
-
-### Binary layout
-
-`.cimg` files are uncompressed and contain no magic number or version field.
-
-| Offset | Length | Contents |
-| --- | ---: | --- |
-| 0 | 4 bytes | Width: unsigned 32-bit integer, little-endian. |
-| 4 | 4 bytes | Height: unsigned 32-bit integer, little-endian. |
-| 8 | 4 bytes per pixel | Red, green, blue, alpha: one byte per channel. |
-
-Pixels start at the top-left and run left to right, then top to bottom. Both
-dimensions must be positive. A file produced by the converter has a total size
-of `8 + width × height × 4` bytes.
-
-The converter explicitly writes little-endian dimensions. The current C++
-loader reads them in the machine's native byte order, so these files are
-directly compatible with little-endian targets. The loader checks for missing
-pixel data but does not reject extra bytes after the expected pixels.
-
-## Public API
-
-The tables below use `canvas` for an instance of `tge::Canvas`. Constructor and
-member names are shortened inside their class section; use the `tge::` prefix
-when naming a type in your code.
-
-### `tge::Color`
-
-Stores red, green, blue and alpha channels in the range `0–255`. There are no
-individual channel getters. Constructors and setters take unsigned channel
-values and reject values above 255 with `std::invalid_argument`.
-
-| Constructor or member | Purpose |
+| Format | Support |
 | --- | --- |
-| `Color()` | Opaque black: `(0, 0, 0, 255)`. |
-| `Color(r, g, b, a = 255)` | Creates an RGBA color. |
-| `setRGB(r, g, b)` | Sets RGB and resets alpha to 255. |
-| `setRGBA(r, g, b, a)` | Sets all four channels. |
-| `overlapColor(above)` | Returns the RGB blend of `above` over this color. |
-| `toString()` | Returns `r,g,b,a` as text. |
-| `toChars(buffer)` | Writes `r;g;b` without a null terminator and returns its length. Supply at least 12 writable bytes. |
-| `operator==`, `operator=` | Compares or copies all four channels. |
+| **PNG** | Grayscale, RGB, palettes and alpha; legal 1/2/4/8/16-bit combinations; all scanline filters and Adam7 interlacing. |
+| **BMP** | 1/4/8/16/24/32-bit images, palettes, RGB color masks, RLE4 and RLE8, and top-down or bottom-up uncompressed rows. |
+| **ICO** | PNG and bitmap images, alpha channels and binary transparency masks. |
 
-Drawing uses the incoming color's alpha to blend RGB channels. An incoming
-alpha of zero leaves the destination unchanged; a nonzero alpha produces an
-opaque blend result. Blending uses integer arithmetic. Set a canvas background
-with `setBG()` when you want to replace its pixels directly.
+Decoded images use **8-bit RGBA**. PNG samples with 16-bit precision are scaled
+to 8 bits. For an ICO containing several images, TGE chooses the valid image
+with the most pixels; ties prefer higher bit depth, then PNG.
 
-Built-in colors are available as `tge::Color::name`; all have alpha 255:
+The filename constructor throws `std::runtime_error` if loading fails. To
+check the result yourself, create an empty `tge::Img` and call
+`image.load("sprite.png")`, which returns `bool`. A failed load leaves the
+previous image, dimensions and mode unchanged. Allocation failures can throw.
 
-| Name | RGB | Name | RGB |
-| --- | --- | --- | --- |
-| `white` | `255,255,255` | `black` | `0,0,0` |
-| `red` | `255,0,0` | `green` | `0,255,0` |
-| `blue` | `0,0,255` | `yellow` | `255,255,0` |
-| `cyan` | `0,255,255` | `magenta` | `255,0,255` |
-| `light_grey` | `200,200,200` | `grey` | `128,128,128` |
-| `dark_grey` | `50,50,50` | `orange` | `255,165,0` |
-| `purple` | `128,0,128` | `pink` | `255,192,203` |
-| `brown` | `139,69,19` | `lime` | `50,205,50` |
-| `navy` | `0,0,128` | `teal` | `0,128,128` |
-| `olive` | `128,128,0` | `gold` | `255,215,0` |
-| `silver` | `192,192,192` | `bronze` | `205,127,50` |
-| `sky_blue` | `135,206,235` | `violet` | `238,130,238` |
-| `indigo` | `75,0,130` | `turquoise` | `64,224,208` |
+<details>
+<summary>Decoder limits</summary>
 
-### `tge::Canvas` / `tge::CImg`
+- PNG/APNG files load their default static image. Animation is not played.
+- Color profiles, gamma, EXIF orientation and other display metadata are not
+  applied.
+- BMP supports OS/2 CORE and Windows headers. OS/2 V2 headers and BMP files
+  containing embedded JPEG or PNG data are not decoded.
+- In a BMP using `BI_RGB` at 32 bits, the reserved high byte is ignored. Alpha
+  comes from an explicit alpha mask. ICO bitmap alpha follows icon conventions.
+- Monochrome ICO pixels that invert the destination screen cannot be represented as RGBA
+  and are rejected.
+- File size and decoded pixel storage are each limited to 256 MiB. PNG inflated
+  scanline data is also limited to 256 MiB. Total working memory can be higher.
 
-#### Construction
+</details>
 
-| Constructor | Purpose |
-| --- | --- |
-| `Canvas()` | Creates an uninitialized canvas. Call `resize()` or `load()` before drawing. |
-| `Canvas(width, height)` | Creates a surface filled with `CONSOLE_BG_COLOR`. |
-| `Canvas(width, height, title)` | Also stores a window title, applied during `print()`. |
-| `Canvas(width, height, pixels)` | Copies a row-major `std::vector<tge::Color>` of exactly `width × height` elements. |
-| `Canvas(file_name)` | Loads a `.cimg` image or throws `std::runtime_error` when loading reports failure. |
+## Colors
 
-Dimensions use `size_t` and must be positive. Zero dimensions or an incorrectly
-sized pixel vector cause `std::invalid_argument`. Operations that need pixel
-data throw `std::logic_error` on an uninitialized canvas.
+Create a color with red, green, blue and an optional alpha channel. Each value
+is in the range `0–255`; alpha defaults to 255, meaning fully opaque.
 
-#### Terminal functions
+```cpp
+tge::Color orange(255, 140, 0);
+tge::Color translucentBlue(0, 100, 255, 128);
+```
+
+Named colors include `white`, `black`, `red`, `green`, `blue`, `yellow`, `cyan`,
+`magenta`, `orange`, `purple`, `pink`, `brown`, `grey`, `light_grey` and
+`dark_grey`, available as `tge::Color::name`.
+
+`setRGB(r, g, b)` changes RGB and resets alpha to 255. `setRGBA(r, g, b, a)`
+sets all four channels. Invalid channel values throw `std::invalid_argument`.
+
+Drawing uses the incoming alpha to blend RGB over existing pixels. Fully
+transparent pixels leave the destination unchanged; a nonzero alpha produces
+an opaque blend result. Blending uses integer arithmetic. `setBG()` replaces
+the canvas pixels directly.
+
+`color.toString()` returns `"r,g,b,a"`. `color.overlapColor(above)` returns the
+same RGB blend used by drawing, without changing either color. Color equality
+with `==` compares all four channels.
+
+## Canvas and terminal
+
+### Creating and managing a canvas
 
 | Call | Purpose |
 | --- | --- |
-| `tge::Canvas::initializeTerminal()` | Opens the terminal session. Repeated calls while active do nothing. |
-| `tge::Canvas::resetTerminal()` | Closes the session; safe to call when it is already closed. |
-| `tge::Canvas::isTerminalInitialized()` | Reports whether TGE considers the session active. |
-| `tge::Canvas::getScreenSize()` | Returns `std::pair<int, int>` containing width and height in graphics pixels. |
-| `tge::Canvas::setTitle(title)` | Sets the terminal window title immediately. |
-| `tge::Canvas::sleep(ms)` | Sleeps for the requested number of milliseconds. |
-| `canvas.print()` | Displays the frame, skipping unchanged cells. Requires an initialized canvas and active terminal session. |
+| `Canvas()` | Creates an empty, uninitialized canvas. |
+| `Canvas(width, height)` | Creates a canvas filled with the default background. |
+| `Canvas(width, height, title)` | Also stores a title to apply during `print()`. |
+| `Canvas(width, height, pixels)` | Copies a row-major `std::vector<tge::Color>` with exactly `width × height` elements. |
+| `Canvas(file_name)` / `Img(file_name)` | Loads an image. |
+| `getWidth()`, `getHeight()` | Returns dimensions in pixels. |
+| `isInitialized()` | Reports whether the canvas has pixel storage. |
+| `resize(width, height)` | Replaces storage with the default background; returns `false` if the initialized size is already the same. |
+| `setBG(color)` | Fills the existing canvas with a color. |
+| `clear()` | Releases storage and resets dimensions. Call `resize()` or `load()` before drawing again. |
+| `load(file_name)` | Loads an image and returns `bool`. |
+| `scaled(width, height)` | Returns a resized image. |
+| `screenshot()` | Returns a copy of the canvas pixels as an image. |
+| `setImageMode(true)` | Releases auxiliary drawing and frame buffers for image storage. Drawing can allocate them again. |
+| `isImage()` | Reports whether image mode is enabled. |
 
-#### State and image operations
+Canvas dimensions must be positive. An empty canvas must be initialized before
+drawing; operations that require pixels throw `std::logic_error` otherwise.
+Copying a canvas copies its pixels and drawing state. `==` compares dimensions
+and RGBA pixels; titles and mode flags are not compared. `screenshot()` returns
+an image in memory; it does not save a file.
 
-| Member | Purpose |
-| --- | --- |
-| `getWidth()`, `getHeight()` | Returns the dimensions in pixels. |
-| `isInitialized()` | Reports whether the canvas has valid dimensions and pixel storage. |
-| `load(file_name)` | Loads a `.cimg` file. Returns `bool`. |
-| `scaled(width, height)` | Returns a resized image using source-pixel sampling. Positive dimensions are required. |
-| `screenshot()` | Returns a copy of the canvas pixels as a new canvas. |
-| `resize(width, height)` | Replaces the pixels with `CONSOLE_BG_COLOR`. Returns `false` without changing pixels if the initialized canvas already has that size. |
-| `setImageMode(bool)`, `isImage()` | Sets or reads the image-mode flag. Image mode releases auxiliary drawing/output buffers; `print()` switches it off. |
-| `clear()` | Releases buffers, resets dimensions and removes the stored title. |
-| `operator=`, copy constructor | Copies canvas state and buffers. |
-| `operator==` | Compares dimensions and pixels; ignores the title, image-mode flag and output cache. |
-
-When a terminal session is active, a size-changing `resize()` also emits
-terminal sequences to clear scrollback and move the cursor home.
-
-#### Drawing operations
-
-All coordinates below are in graphics pixels. Color arguments are
-`tge::Color` values, and image arguments are `tge::Canvas` / `tge::CImg` values.
-
-| Member | Purpose |
-| --- | --- |
-| `setBG(color)` | Replaces every pixel with the given color. |
-| `drawPixel(x, y, color)` | Blends one pixel. |
-| `drawLine(x0, y0, x1, y1, thickness, color)` | Draws a line with the requested thickness. |
-| `drawCircle(cx, cy, radius, color)` | Draws a one-pixel circle outline. |
-| `drawFilledCircle(cx, cy, radius, color)` | Draws a filled circle. |
-| `drawRect(x, y, width, height, thickness, color)` | Draws a rectangle outline. |
-| `drawFilledRect(x, y, width, height, color)` | Draws a filled rectangle. |
-| `drawImg(image, x, y)` | Draws an image at its original size. Returns `bool`. |
-| `drawText(text, x, y, color)` | Draws a `std::wstring` using the built-in bitmap font. |
-| `drawTexture(image, x0, y0, x1, y1, x2, y2, x3, y3)` | Maps an image onto four vertices. Returns `bool`. |
-
-Nonpositive line or rectangle-outline thickness draws nothing. Negative circle
-radii and nonpositive filled-rectangle dimensions also draw nothing.
-`drawRect()` accepts negative width or height by shifting the rectangle's
-origin and using the corresponding positive size.
-
-`drawImg()` and `drawTexture()` return `true` on normal completion, including
-when drawing is fully clipped. Their return value does not tell you whether
-any pixels became visible. They throw if the source or destination canvas is
-uninitialized.
-
-### Text rendering and `tge::Font`
-
-Pass a wide string literal, such as `L"Hello, TGE!"`, to `drawText()`. Text
-starts at the supplied pixel position and advances by each glyph's bitmap
-width. It stays on one line: line breaks and other unsupported characters are
-rendered as `?`.
-
-Supported characters:
-
-- Lowercase letters: `a–z`, plus `à è é ì ò ù`.
-- Uppercase letters: `A–Z`.
-- Digits: `0–9`.
-- Space and the symbols below.
-
-```text
-! ? . , : ; ' " + - * / \ | ( ) [ ] { } = & % £ $ € _ # @ < > ^
-```
-
-For a single character image, use
-`tge::Font::basic_char(wchar_t ch, tge::Color color)`. For example:
-
-```cpp
-tge::CImg letter = tge::Font::basic_char(L'A', tge::Color::white);
-canvas.drawImg(letter, 2, 2);
-```
-
-### Default background
-
-`CONSOLE_BG_COLOR` controls the fill used by `Canvas(width, height)`, its
-title-taking variant and `resize()`. It also fills the lower half of the last
-row of terminal cells for odd canvas heights. Its default is
-`::tge::Color(12, 12, 12)`.
-
-To change it, define the macro **before** including the header:
+The default background is `tge::Color(12, 12, 12)`. To choose another default,
+define `CONSOLE_BG_COLOR` before including the header:
 
 ```cpp
 #define CONSOLE_BG_COLOR ::tge::Color(20, 24, 32)
 #include "TGE.hpp"
 ```
 
-Use the same definition in every source file that includes TGE. The macro is
-a preprocessor setting and has no namespace prefix. To change only one canvas
-at runtime, call `canvas.setBG(color)` instead.
+Use the same definition in every source file that includes TGE. To change just
+one canvas at runtime, use `setBG()`.
 
-## Updating older code
+### Terminal session
 
-The current header places the library's public types in the lowercase `tge`
-namespace. Update older examples and applications to use these names:
-
-| Earlier name | Current name |
+| Call | Purpose |
 | --- | --- |
-| `Color` | `tge::Color` |
-| `Canvas` | `tge::Canvas` |
-| `CImg` | `tge::CImg` |
-| `Font` | `tge::Font` |
+| `Canvas::initializeTerminal()` | Opens the alternate screen, clears it and hides the cursor. |
+| `Canvas::resetTerminal()` | Leaves the alternate screen and shows the cursor; safe to call repeatedly. |
+| `Canvas::isTerminalInitialized()` | Reports whether a session is active. |
+| `Canvas::getScreenSize()` | Returns the terminal size in graphics pixels as `std::pair<int, int>`. |
+| `Canvas::setTitle(title)` | Sets the terminal window title. |
+| `Canvas::sleep(milliseconds)` | Pauses the calling thread. |
+| `canvas.print()` | Displays the frame. Requires an initialized canvas and an active session. |
 
-For example, use `tge::Canvas::initializeTerminal()` and `tge::Color::white`.
-Member calls on an existing object, such as `canvas.print()`, keep the same
-syntax. No aliases are added to the global namespace.
+Static calls use the `tge::` prefix, for example
+`tge::Canvas::initializeTerminal()`. Terminal state is shared by all canvases.
+Destroying a canvas does not close the session, so call `resetTerminal()` when
+your program exits, including after handled errors.
 
-In older versions, `CImg` was a separate class. It is now an alias for
-`tge::Canvas`; loading, scaling and drawing images use the canvas API.
+`getScreenSize()` requires output attached to a working terminal. Its height
+already includes the two pixels per terminal row. Query it again and call
+`resize()` if your application needs to follow terminal size changes.
+It throws `std::runtime_error` if the terminal size cannot be read or is zero.
+
+Use one canvas for display during a session. Each canvas caches its previous
+frame, so alternating display canvases or writing other output can make that
+cache differ from the visible screen.
+
+## Bitmap text
+
+`drawText()` uses wide strings and the built-in font. It supports `A–Z`, `a–z`,
+`0–9`, spaces, common punctuation and the lowercase accents `à è é ì ò ù`.
+Unsupported characters are displayed as question marks.
+
+To obtain one character as an image, use:
+
+```cpp
+tge::Img letter = tge::Font::basic_char(L'A', tge::Color::white);
+```
+
+## Repository files
+
+| File | Purpose |
+| --- | --- |
+| [TGE.hpp](TGE.hpp) | The complete library. |
+| [example.cpp](example.cpp) | The simple drawing example shown above. |
+| [assets/](assets/) | The project banner in PNG and SVG formats. |
+| [LICENSE](LICENSE) | The MIT license. |
 
 ## License
 
-TGE is available under the [MIT license](LICENSE). See `LICENSE` for the full terms.
+TGE is available under the [MIT license](LICENSE).
+
+Copyright © 2026 allekks_b.
