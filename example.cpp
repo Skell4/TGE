@@ -5,8 +5,7 @@ int main() {
     tge::Canvas::initializeTerminal();
 
     while (true) {
-        auto [width, height] = tge::Canvas::getScreenSize();
-        canvas.resize(width, height);
+        canvas.resize(tge::Canvas::getScreenSize());
         canvas.setBG(tge::Color::black);
 
         canvas.drawCircle(12, 12, 8, tge::Color::yellow);

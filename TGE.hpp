@@ -2,7 +2,7 @@
 
 #define TGE_HPP
 
-// TGE 3.0
+// TGE 4.0
 
 #include <vector>
 #include <stdexcept>
@@ -1466,22 +1466,25 @@ public:
         return { width, height*2 };
     }
 
-    bool resize(size_t width, size_t height) {
-        if (width == 0 || height == 0)
+    bool resize(int width, int height) {
+        if (width <= 0 || height <= 0)
             throw std::invalid_argument("Error: screen size must be > 0");
 
-        if (_initialized && _width == width && _height == height)
+        const size_t w = static_cast<size_t>(width);
+        const size_t h = static_cast<size_t>(height);
+
+        if (_initialized && _width == w && _height == h)
             return false;
 
-        _width = width;
-        _height = height;
-        _pixels.assign(width * height, CONSOLE_BG_COLOR);
+        _width = w;
+        _height = h;
+        _pixels.assign(w * h, CONSOLE_BG_COLOR);
         _initialized = true;
 
         if (_temp_pixels.empty()) {
             std::vector<Color>().swap(_temp_pixels);
         } else {
-            _temp_pixels.assign(width * height, Color(0, 0, 0, 0));
+            _temp_pixels.assign(w * h, Color(0, 0, 0, 0));
         }
 
         std::vector<Color>().swap(_old_pixels);
@@ -1492,6 +1495,11 @@ public:
         }
 
         return true;
+    }
+
+    bool resize(std::pair<int, int> size) {
+        auto [width, height] = size;
+        return resize(width, height);
     }
 
     void print() {
