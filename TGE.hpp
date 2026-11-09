@@ -2,7 +2,7 @@
 
 #define TGE_HPP
 
-// TGE 4.0
+// TGE 4.1
 
 #include <vector>
 #include <stdexcept>
@@ -181,9 +181,6 @@ inline const Color Color::turquoise(64,224,208);
 namespace detail {
 namespace png {
 
-// Self-contained static PNG decoder. No system codecs or third-party code.
-// Format references: https://www.w3.org/TR/png-3/ and RFC 1950 / RFC 1951.
-// Bound each of the input, inflated scanlines and final pixel buffers to 256 MiB.
 inline constexpr size_t maxBufferBytes = size_t(256) * 1024 * 1024;
 
 inline bool hasSignature(const uint8_t* bytes) {
@@ -242,7 +239,6 @@ public:
     BitReader(const uint8_t* data, size_t size) : _data(data), _size(size) { }
 
     bool read(unsigned count, unsigned& value) {
-        // Callers request at most 16 bits; at most 7 remain after a read.
         while (_bits < count) {
             if (_position == _size)
                 return false;
@@ -288,9 +284,8 @@ public:
         for (unsigned bits = 1; bits <= 15; ++bits) {
             available = available * 2 - int(_counts[bits]);
             if (available < 0)
-                return false; // Oversubscribed tree.
+                return false;
         }
-        // Incomplete trees are valid only for a single one-bit data symbol.
         if (available && (codeLengthTree || _maxBits != 1))
             return false;
 
@@ -309,7 +304,6 @@ public:
             unsigned bit;
             if (!input.read(1, bit))
                 return false;
-            // Huffman codes arrive most-significant bit first.
             code = (code << 1) | bit;
             if (code >= first && code - first < _counts[bits]) {
                 symbol = _symbols[index + code - first];
@@ -455,7 +449,6 @@ inline bool inflate(const std::vector<uint8_t>& compressed, size_t expected,
                 if (distance > output.size() || distance > window ||
                     length > expected - output.size())
                     return false;
-                // Copy byte by byte: an LZ77 match may overlap its own output.
                 for (unsigned i = 0; i < length; ++i)
                     output.push_back(output[output.size() - distance]);
             }
@@ -465,7 +458,6 @@ inline bool inflate(const std::vector<uint8_t>& compressed, size_t expected,
     input.align();
     if (output.size() != expected || input.position() > compressed.size() - 6)
         return false;
-    // PNG permits unused bytes after the zlib stream in the final IDAT.
     return read32(compressed.data() + 2 + input.position()) == adler32(output);
 }
 
@@ -640,11 +632,11 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
             return false;
         if (haveData && name != 0x49444154u)
             dataEnded = true;
-        if (name == 0x49484452u) { // IHDR
+        if (name == 0x49484452u) {
             if (haveHeader || position != 8 || length != 13 || !readHeader(data, header))
                 return false;
             haveHeader = true;
-        } else if (name == 0x504c5445u) { // PLTE
+        } else if (name == 0x504c5445u) {
             if (havePalette || haveTransparency || haveData || !length || length % 3 ||
                 length > 768 || header.type == 0 || header.type == 4)
                 return false;
@@ -654,7 +646,7 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
             for (size_t i = 0; i < header.paletteSize; ++i)
                 header.palette[i] = {data[i * 3], data[i * 3 + 1], data[i * 3 + 2], 255};
             havePalette = true;
-        } else if (name == 0x74524e53u) { // tRNS
+        } else if (name == 0x74524e53u) {
             if (haveTransparency || haveData)
                 return false;
             const unsigned mask = (1u << header.depth) - 1u;
@@ -674,21 +666,20 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
                 return false;
             }
             haveTransparency = true;
-        } else if (name == 0x49444154u) { // IDAT
+        } else if (name == 0x49444154u) {
             if (dataEnded || (header.type == 3 && !havePalette) ||
                 length > maxBufferBytes - compressed.size())
                 return false;
             compressed.insert(compressed.end(), data, data + length);
             haveData = true;
-        } else if (name == 0x49454e44u) { // IEND
+        } else if (name == 0x49454e44u) {
             if (length || !haveData || position + 12 != file.size())
                 return false;
             haveEnd = true;
             break;
         } else if (!(type[0] & 32u)) {
-            return false; // Unknown critical chunk.
+            return false;
         }
-        // Ignore ancillary metadata and animation chunks (use the static image).
         position += length + 12;
     }
     if (!haveEnd || !reconstruct(header, compressed, pixels))
@@ -698,12 +689,10 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
     return true;
 }
 
-} // namespace png
+}
 
 namespace bitmap {
 
-// Windows/OS2 core BMPs, Windows DIBs and the bitmap payload of ICO files.
-// See Microsoft's Bitmap Storage, Bitmap Compression and BITMAPV4HEADER docs.
 inline unsigned read16(const uint8_t* p) {
     return unsigned(p[0]) | (unsigned(p[1]) << 8);
 }
@@ -735,7 +724,7 @@ struct Mask {
             ++shift;
         }
         maximum = value;
-        return !(value & (value + 1u)); // A channel mask must be contiguous.
+        return !(value & (value + 1u));
     }
 
     unsigned get(uint32_t value) const {
@@ -747,8 +736,6 @@ inline bool rle(const uint8_t* data, size_t size, size_t width, size_t height,
                 unsigned depth, const std::array<Color, 256>& palette, size_t colors,
                 std::vector<Color>& pixels) {
     pixels.assign(width * height, palette[0]);
-    // Some encoders include DWORD scanline padding in the RLE stream. Consume
-    // those values, but never write them into this or the following image row.
     const size_t rowPixels = size_t(((uint64_t(width) * depth + 31) / 32) * 32 / depth);
     size_t position = 0, x = 0, y = 0;
     const auto write = [&](unsigned index) {
@@ -801,7 +788,7 @@ inline bool rle(const uint8_t* data, size_t size, size_t width, size_t height,
             position += padded;
         }
     }
-    return false; // An RLE bitmap must have an end-of-bitmap marker.
+    return false;
 }
 
 inline bool dib(const uint8_t* data, size_t size, size_t pixelOffset,
@@ -835,7 +822,7 @@ inline bool dib(const uint8_t* data, size_t size, size_t pixelOffset,
         return false;
     const bool compressed = compression == 1 || compression == 2;
     if (compression != 0 && compression != 1 && compression != 2 && compression != 3 && compression != 6)
-        return false; // Embedded JPEG/PNG and OS/2-specific compression are unsupported.
+        return false;
     if ((compression == 1 && depth != 8) || (compression == 2 && depth != 4) ||
         (compressed && (topDown || icon)) ||
         ((compression == 3 || compression == 6) && depth != 16 && depth != 32))
@@ -926,8 +913,6 @@ inline bool dib(const uint8_t* data, size_t size, size_t pixelOffset,
                 }
             }
         }
-    // Many 32-bit icons omit the AND mask when real alpha is present. A partial
-    // mask is still invalid. All-zero alpha instead uses the legacy AND mask.
     if (icon && maskBytes > size - maskOffset && !(iconAlpha && maskOffset == size))
         return false;
     pixels.resize(localWidth * localHeight);
@@ -942,7 +927,6 @@ inline bool dib(const uint8_t* data, size_t size, size_t pixelOffset,
                     (row[x / 8] >> (7 - unsigned(x % 8))) & 1u;
                 if (index >= colors)
                     return false;
-                // Palette entries are BGR; their reserved byte is not alpha.
                 const uint8_t* entry = data + paletteOffset + index * entryBytes;
                 r = entry[2]; g = entry[1]; b = entry[0];
             } else if (depth == 24) {
@@ -954,7 +938,6 @@ inline bool dib(const uint8_t* data, size_t size, size_t pixelOffset,
                     a = masks[3].get(value);
             }
             if (icon && !iconAlpha && (data[maskOffset + sourceY * maskStride + x / 8] & (0x80u >> (x % 8)))) {
-                // Screen-inverting monochrome pixels cannot be represented by RGBA.
                 if (depth == 1 && (r || g || b))
                     return false;
                 a = 0;
@@ -977,7 +960,7 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
     return dib(file.data() + 14, declared - 14, offset - 14, width, height, pixels);
 }
 
-} // namespace bitmap
+}
 
 namespace ico {
 
@@ -1015,8 +998,6 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
         entries.push_back({offset, size, entry[0] ? size_t(entry[0]) : 256,
                            entry[1] ? size_t(entry[1]) : 256, depth, isPng});
     }
-    // Prefer the largest valid image, then higher depth, then PNG. Keep file
-    // order for equivalent entries. Unsupported/corrupt payloads may fall back.
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
         const size_t areaA = a.width * a.height, areaB = b.width * b.height;
         if (areaA != areaB) return areaA > areaB;
@@ -1025,7 +1006,6 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
     });
     size_t attempted = 0;
     for (const auto& entry : entries) {
-        // Bound repeated work even if directory entries share/overlap payloads.
         if (entry.size > png::maxBufferBytes - attempted)
             return false;
         attempted += entry.size;
@@ -1036,7 +1016,7 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
             const uint8_t* image = file.data() + entry.offset;
             if (entry.size < 33 || png::read32(image + 16) != entry.width ||
                 png::read32(image + 20) != entry.height)
-                continue; // Reject mismatched dimensions before PNG allocation.
+                continue;
             std::vector<uint8_t> payload(file.data() + entry.offset, file.data() + entry.offset + entry.size);
             success = png::decode(payload, w, h, decoded);
         } else {
@@ -1051,7 +1031,7 @@ inline bool decode(const std::vector<uint8_t>& file, size_t& width, size_t& heig
     return false;
 }
 
-} // namespace ico
+}
 
 inline bool decodeImage(const std::vector<uint8_t>& file, size_t& width, size_t& height,
                         std::vector<Color>& pixels) {
@@ -1079,7 +1059,7 @@ inline bool loadImage(std::ifstream& stream, size_t& width, size_t& height,
     return decodeImage(file, width, height, pixels);
 }
 
-} // namespace detail
+}
 
 
 
@@ -1093,6 +1073,12 @@ private:
     std::string _title;
     std::vector<Color> _temp_pixels;
     std::vector<Color> _old_pixels;
+
+    static size_t positiveDimension(int dimension) {
+        if (dimension <= 0)
+            throw std::invalid_argument("Error: screen size must be > 0");
+        return static_cast<size_t>(dimension);
+    }
 
     void requireInitialized() const {
         if (!_initialized)
@@ -1332,6 +1318,15 @@ public:
 
         _pixels = pixels;
     }
+
+    Canvas(std::pair<int, int> size)
+        : Canvas(positiveDimension(size.first), positiveDimension(size.second)) { }
+
+    Canvas(std::pair<int, int> size, std::string title)
+        : Canvas(positiveDimension(size.first), positiveDimension(size.second), std::move(title)) { }
+
+    Canvas(std::pair<int, int> size, const std::vector<Color>& pixels)
+        : Canvas(positiveDimension(size.first), positiveDimension(size.second), pixels) { }
 
     Canvas(const Canvas& other)
         : _width(other._width),
@@ -3330,6 +3325,6 @@ inline void Canvas::drawText(const std::wstring& text, int x, int y, Color c) {
     }
 }
 
-} // namespace tge
+}
 
 #endif

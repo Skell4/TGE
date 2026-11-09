@@ -4,7 +4,7 @@
 
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](#getting-started)
 [![Header-only](https://img.shields.io/badge/header--only-7B68EE)](TGE.hpp)
-[![Version 4.0](https://img.shields.io/badge/version-4.0-7B68EE)](TGE.hpp)
+[![Version 4.1](https://img.shields.io/badge/version-4.1-7B68EE)](TGE.hpp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-7B68EE)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Skell4/TGE?style=flat&logo=github&color=7B68EE)](https://github.com/Skell4/TGE/stargazers)
 
@@ -254,6 +254,9 @@ with `==` compares all four channels.
 | `Canvas(width, height)` | Creates a canvas filled with the default background. |
 | `Canvas(width, height, title)` | Also stores a title to apply during `print()`. |
 | `Canvas(width, height, pixels)` | Copies a row-major `std::vector<tge::Color>` with exactly `width × height` elements. |
+| `Canvas(std::pair<int, int> size)` | Accepts a `std::pair<int, int>`, including the result of `getScreenSize()`. |
+| `Canvas(std::pair<int, int> size, title)` | Creates a canvas with the given size and title. |
+| `Canvas(std::pair<int, int> size, pixels)` | Creates an image from the given size and row-major pixel vector. |
 | `Canvas(file_name)` / `Img(file_name)` | Loads an image. |
 | `getWidth()`, `getHeight()` | Returns dimensions in pixels. |
 | `isInitialized()` | Reports whether the canvas has pixel storage. |
@@ -269,7 +272,8 @@ with `==` compares all four channels.
 
 Canvas dimensions must be positive. An empty canvas must be initialized before
 drawing; operations that require pixels throw `std::logic_error` otherwise.
-Both `resize()` overloads accept positive `int` dimensions and throw
+The pair-based constructors and both `resize()` overloads accept positive
+`int` dimensions and throw
 `std::invalid_argument` for zero or negative values.
 Copying a canvas copies its pixels and drawing state. `==` compares dimensions
 and RGBA pixels; titles and mode flags are not compared. `screenshot()` returns
@@ -333,11 +337,10 @@ tge::Img letter = tge::Font::basic_char(L'A', tge::Color::white);
 | [assets/](assets/) | The project banner in PNG and SVG formats. |
 | [LICENSE](LICENSE) | The MIT license. |
 
-## Version 4.0 notes
+## Version 4.1 notes
 
-- Added `resize(std::pair<int, int>)` for direct use with `getScreenSize()`.
-- Breaking change: `resize(size_t, size_t)` is now `resize(int, int)`.
-  Both overloads reject zero or negative dimensions with `std::invalid_argument`.
+- Added `Canvas(std::pair<int, int>)`, also with a title or pixel vector.
+  The pair-based constructors reject zero or negative dimensions with `std::invalid_argument`.
 
 ## License
 
