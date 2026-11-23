@@ -4,7 +4,7 @@
 
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](#getting-started)
 [![Header-only](https://img.shields.io/badge/header--only-7B68EE)](TGE.hpp)
-[![Version 4.1](https://img.shields.io/badge/version-4.1-7B68EE)](TGE.hpp)
+[![Version 4.2](https://img.shields.io/badge/version-4.2-7B68EE)](TGE.hpp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-7B68EE)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Skell4/TGE?style=flat&logo=github&color=7B68EE)](https://github.com/Skell4/TGE/stargazers)
 
@@ -13,7 +13,7 @@ Create a canvas, draw shapes, text or images, and call `print()` to display it.
 Each terminal cell represents two vertical pixels using 24-bit ANSI colors.
 
 The library works on Windows and Linux and has **no third-party dependencies**.
-All its code, including the PNG, BMP and ICO decoders, is in `TGE.hpp`.
+All its code, including the PNG, BMP, ICO and SVG decoders, is in `TGE.hpp`.
 
 ## Contents
 
@@ -27,14 +27,15 @@ All its code, including the PNG, BMP and ICO decoders, is in `TGE.hpp`.
 - [Canvas and terminal](#canvas-and-terminal)
 - [Bitmap text](#bitmap-text)
 - [Repository files](#repository-files)
-- [Version 4.0 notes](#version-40-notes)
+- [Version 4.2 notes](#version-42-notes)
 - [License](#license)
 
 ## Features
 
 - Pixels, thick lines, rectangles and circles, including filled shapes.
 - Bitmap text with uppercase and lowercase letters, digits and symbols.
-- Direct PNG, BMP and ICO loading with transparency where supported.
+- Direct PNG, BMP, ICO and static SVG loading with transparency where supported.
+- SVG paths, transforms, gradients and antialiased rasterization at a chosen size.
 - Image scaling and texture mapping onto a quadrilateral.
 - RGBA colors and alpha-based RGB blending when drawing.
 - Frame output that skips terminal cells unchanged since the previous frame.
@@ -159,6 +160,8 @@ Load an image by passing its path to `tge::Img`:
 tge::Img sprite("sprite.png");
 tge::Img picture("picture.bmp");
 tge::Img icon("icon.ico");
+tge::Img vectorImage("logo.svg");
+tge::Img crispVector("logo.svg", 160, 80); // Rasterize at this viewport size.
 ```
 
 Paths are relative to the program's working directory unless you pass an
@@ -191,10 +194,83 @@ The mapping uses two affine triangles and samples without filtering.
 | **PNG** | Grayscale, RGB, palettes and alpha; legal 1/2/4/8/16-bit combinations; all scanline filters and Adam7 interlacing. |
 | **BMP** | 1/4/8/16/24/32-bit images, palettes, RGB color masks, RLE4 and RLE8, and top-down or bottom-up uncompressed rows. |
 | **ICO** | PNG and bitmap images, alpha channels and binary transparency masks. |
+| **SVG** | A static vector subset: shapes, full path command set, transforms, fills, strokes, gradients and local references. See below. |
 
 Decoded images use **8-bit RGBA**. PNG samples with 16-bit precision are scaled
 to 8 bits. For an ICO containing several images, TGE chooses the valid image
 with the most pixels; ties prefer higher bit depth, then PNG.
+
+### SVG images
+
+SVG is rasterized to the same transparent 8-bit RGBA buffer as other images.
+`drawImg()` and `drawTexture()` work without changes. TGE remains a single
+C++17 header with no third-party libraries, system image APIs or external tools.
+
+```cpp
+tge::Img logo("logo.svg");          // Intrinsic size; viewBox or 300 x 150 fallback.
+tge::Img large("logo.svg", 160, 80); // Rasterize the vectors at a new viewport size.
+
+// Or reuse an image. Failed loading preserves its previous contents and mode.
+if (!logo.load("logo.svg", 80, 40)) {
+    // Handle a malformed file, unsupported feature or decoder limit.
+}
+canvas.drawImg(logo, 2, 2);
+```
+
+The size overloads accept positive `int` dimensions. Zero or negative dimensions
+throw `std::invalid_argument`. They also accept PNG, BMP and ICO, using the same
+nearest-neighbor sampling as `scaled()` for those raster formats. An excessive
+output size returns `false` from `load()`; the filename constructors throw.
+
+An SVG is detected from its contents, including an optional UTF-8 BOM, XML
+prolog and comments. Dimensions are rounded up to whole pixels. Absolute units
+use 96 DPI. When SVG width or height is absent, the corresponding viewBox
+dimension is used; without a viewBox, defaults are 300 and 150. Percentage root
+dimensions use those same fallback dimensions as their reference.
+
+Requested dimensions set the SVG viewport. `viewBox` and `preserveAspectRatio`
+control fitting, with centered `meet` as the default. Transparent margins may
+appear when the aspect ratios differ. If no viewBox exists, the intrinsic
+viewport is used as the source rectangle for resizing. Calling `scaled()` on an
+already loaded SVG scales its pixels; load it again at the desired size to
+rasterize the curves again.
+
+| SVG feature | Support |
+| --- | --- |
+| Geometry | `rect` with rounded corners, `circle`, `ellipse`, `line`, `polygon`, `polyline`, `path`. |
+| Paths | Absolute and relative `M L H V C S Q T A Z`, including repeated parameters, smooth curves and elliptical arcs. |
+| Coordinates | Root `viewBox`; `preserveAspectRatio` alignment, `meet`, `slice`, `none`; `px`, `%`, `in`, `cm`, `mm`, `q`, `pt`, `pc`. |
+| Transforms | Nested `matrix`, `translate`, `scale`, `rotate`, `skewX`, `skewY`. |
+| Paint | Hex RGB/RGBA, `rgb()`, `rgba()`, SVG/CSS named colors, `none`, `currentColor`, inherited presentation properties and inline `style`. |
+| Fills | Nonzero and even-odd winding; transparent output; 4 x 4 coverage sampling for antialiasing. |
+| Strokes | Width, opacity, butt/round/square caps, miter/round/bevel joins, miter limits, dash arrays and dash offsets. |
+| Gradients | Linear and radial, focal points, stops and opacity, object-bounding-box/user-space units, transforms, pad/repeat/reflect and local gradient inheritance. |
+| Structure | Groups, isolated element/group opacity, `display`, `visibility`, `defs` and local `use` references to supported geometry/groups. |
+| XML | UTF-8, comments, processing instructions, basic/numeric attribute entities and namespace-prefixed SVG element names. |
+
+This is a static SVG subset, not a browser renderer. Visible unsupported elements
+or referenced unsupported rendering features fail loading. In particular,
+**text/fonts, clipping paths, masks, filters, patterns, markers, embedded images,
+nested SVG viewports, symbols, animation and stylesheet elements are not
+supported**. Convert text to paths and expand unsupported features in your SVG
+editor before loading. CSS selectors, external stylesheets and advanced CSS
+properties are not implemented; use the supported presentation attributes or
+inline declarations. Scripts and external image/gradient/use references are
+not executed or fetched. External DTD declarations are accepted without being
+resolved; internal DTD subsets and custom entities are rejected. SVGZ and
+UTF-16 XML are not supported.
+
+The project banner (`assets/tge-banner.svg`) contains text and clipping and is
+outside this subset.
+
+SVG input is limited to 16 MiB, 10,000 XML elements, 64 levels of nesting and
+200,000 generated geometry points. Rendered pixels and simultaneously active
+opacity layers share a 256 MiB surface budget. Rasterization also has a work
+budget; exceptionally complex or very large valid SVGs can be rejected. Total
+working memory, including the XML tree, coverage masks and output conversion,
+can be higher. Curves are flattened with a target tolerance of 0.15 output
+pixels and a bounded subdivision depth. Antialiasing and color interpolation
+can differ slightly from browser rendering.
 
 The filename constructor throws `std::runtime_error` if loading fails. To
 check the result yourself, create an empty `tge::Img` and call
@@ -258,13 +334,14 @@ with `==` compares all four channels.
 | `Canvas(std::pair<int, int> size, title)` | Creates a canvas with the given size and title. |
 | `Canvas(std::pair<int, int> size, pixels)` | Creates an image from the given size and row-major pixel vector. |
 | `Canvas(file_name)` / `Img(file_name)` | Loads an image. |
+| `Canvas(file_name, width, height)` | Loads at a chosen size; rerasterizes SVG and scales raster formats. |
 | `getWidth()`, `getHeight()` | Returns dimensions in pixels. |
 | `isInitialized()` | Reports whether the canvas has pixel storage. |
 | `resize(int width, int height)` | Replaces storage with the default background; returns `true` if resized, or `false` if the initialized size is already the same. |
 | `resize(std::pair<int, int> size)` | Accepts `{width, height}` with the same validation and return value as the two-argument overload. |
 | `setBG(color)` | Fills the existing canvas with a color. |
 | `clear()` | Releases storage and resets dimensions. Call `resize()` or `load()` before drawing again. |
-| `load(file_name)` | Loads an image and returns `bool`. |
+| `load(file_name)` / `load(file_name, width, height)` | Loads an image and returns `bool`. |
 | `scaled(width, height)` | Returns a resized image. |
 | `screenshot()` | Returns a copy of the canvas pixels as an image. |
 | `setImageMode(true)` | Releases auxiliary drawing and frame buffers for image storage. Drawing can allocate them again. |
@@ -336,6 +413,11 @@ tge::Img letter = tge::Font::basic_char(L'A', tge::Color::white);
 | [example.cpp](example.cpp) | The simple drawing example shown above. |
 | [assets/](assets/) | The project banner in PNG and SVG formats. |
 | [LICENSE](LICENSE) | The MIT license. |
+
+## Version 4.2 notes
+
+- Added a self-contained static SVG decoder and antialiased rasterizer.
+- Added sized filename constructors and `load(file_name, width, height)`.
 
 ## Version 4.1 notes
 
